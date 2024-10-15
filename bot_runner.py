@@ -12,10 +12,7 @@ from aiogram.types import Message
 from src.configs import settings
 
 # Bot token can be obtained via https://t.me/BotFather
-TOKEN = getenv(settings.bot_token)
-
-# All handlers should be attached to the Router (or Dispatcher)
-
+token = settings.bot_token
 dp = Dispatcher()
 
 
@@ -49,7 +46,7 @@ async def echo_handler(message: Message) -> None:
 
 async def main() -> None:
     # Initialize Bot instance with default bot properties which will be passed to all API calls
-    bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    bot = Bot(token=token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 
     # And the run events dispatching
     await dp.start_polling(bot)

@@ -5,7 +5,7 @@ env.read_env()
 
 
 bot_token: str = env.str('BOT_TOKEN', default='')
-gpt_token: str = env.str('BOT_TOKEN', default='')
+gpt_token: str = env.str('GPT_TOKEN', default='')
 elastic_password: str = env.str('ELASTIC_PASSWORD', default='')
 
 elk_index = 'llmds_storage'
