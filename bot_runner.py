@@ -34,9 +34,9 @@ async def echo_handler(message: Message) -> None:
     try:
         user = message.from_user
         if validators.url(message.text):
-            print('TRUE', message.text)
+            logging.info(f'{user}. TRUE: {message.text}')
         else:
-            print('FALSE')
+            logging.info(f'{user}. FALSE: {message.text}')
     except TypeError:
         await message.answer("Nice try!")
 
