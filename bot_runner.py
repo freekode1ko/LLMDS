@@ -10,14 +10,23 @@ from aiogram.filters import CommandStart
 from aiogram.types import Message
 
 from src.configs import settings
+import src.modules.elastic as elk
 
 token = settings.bot_token
+es_obj = elk.Elastic()
 dp = Dispatcher()
 
 
 @dp.message(CommandStart())
 async def command_start_handler(message: Message) -> None:
-    await message.answer(f"Hello, {html.bold(message.from_user.full_name)}!")
+    await message.answer("Check if index is exist. Clear if exist and create if not")
+    # es_handler = elk.EsHandler(es_obj.es, settings.elk_index)
+    if es_obj.delete_index(settings.elk_index):
+        await message.answer("Index is cleared")
+    else:
+        await message.answer("Index not found, creating index")
+    es_obj.create_index(settings.elk_index)
+    await message.answer("Elastic is ready")
 
 
 @dp.message()
