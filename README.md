@@ -3,15 +3,9 @@
 ___
 Для начала работы необходимо создать файл `.env` по пути: `src/configs/` со следующим содержанием
 
-<code>
-ELASTIC_PASSWORD=
-</code><br>
-<code>
-BOT_TOKEN=
-</code><br>
-<code>
-GPT_TOKEN=
-</code><br>
+<code>ELASTIC_PASSWORD=<br></code>
+<code>BOT_TOKEN=<br></code>
+<code>GPT_TOKEN=</code>
 
 После знака `=` без пробела и доп символов заполнить поля.<br>
 `ELASTIC_PASSWORD` - Пароль от хранилища данных (elasticsearch).<br>
