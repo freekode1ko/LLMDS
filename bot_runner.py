@@ -78,7 +78,7 @@ async def what_to_remove_handler(call: CallbackQuery):
         elastic.es.delete_by_query(index=settings.elk_index, body=query)
         del temp_storage[uid]
         print(data_id, ' - removed')
-        # TODO del doc from elk
+
 
 @dp.message()
 async def echo_handler(message: Message) -> None:
