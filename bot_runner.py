@@ -72,16 +72,20 @@ async def what_to_remove_handler(call: CallbackQuery):
     uid = call.data.replace('@@_', '')
     data_id = temp_storage.get(uid)
     if data_id:
+        print(call.from_user.id)
+        query = {"query": {"bool": {"must": [{"match": {"metadata.doc_id": data_id}},
+                                             {"match": {"metadata.doc_owner": str(call.from_user.id)}}]}}}
+        elastic.es.delete_by_query(index=settings.elk_index, body=query)
         del temp_storage[uid]
+        print(data_id, ' - removed')
         # TODO del doc from elk
-
-
 
 @dp.message()
 async def echo_handler(message: Message) -> None:
     try:
         user = message.from_user
         if message.content_type == 'document':
+            await message.reply('Принял в обработку, подождите минуту')
             file_id = message.document.file_id
             file = await bot.get_file(file_id)
             file_path = file.file_path
@@ -96,10 +100,11 @@ async def echo_handler(message: Message) -> None:
                 splitted_page = transformers_obj.text_splitter(page.page_content, page_metadata)
                 await es_handler.vectorstore.aadd_documents(splitted_page)
             print('docs writed to db')
+            await message.reply('Файл загружен и готов к использованию')
 
-        #if validators.url(message.text):
+        # if validators.url(message.text):
         #    logging.info(f'{user}. TRUE: {message.text}')
-        #else:
+        # else:
         #    logging.info(f'{user}. FALSE: {message.text}')
     except TypeError:
         await message.answer("Nice try!")
