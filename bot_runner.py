@@ -29,14 +29,13 @@ bot = Bot(token=token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 
 @dp.message(CommandStart())
 async def command_start_handler(message: Message) -> None:
-    await message.answer("Check if index is exist. Clear if exist and create if not")
-    # es_handler = elk.EsHandler(es_obj.es, settings.elk_index)
+    await message.answer("Проверка статуса Elastic")
     if es_obj.delete_index(settings.elk_index):
-        await message.answer("Index is cleared")
+        await message.answer("Индекс очищен")
     else:
-        await message.answer("Index not found, creating index")
+        await message.answer("Индекс не обнаружен, запущен процесс создания")
     es_obj.create_index(settings.elk_index)
-    await message.answer("Elastic is ready")
+    await message.answer("Elastic готов к работе")
 
 
 def save_token(token: str):
@@ -64,20 +63,23 @@ async def doc_handler(message: Message) -> None:
     for doc in all_unic_docs:
         token = save_token(doc[1])
         keyboard.add(InlineKeyboardButton(text=doc[0], callback_data=f"@@_{token}"))
-    await message.reply("Choose which to remove:", reply_markup=keyboard.as_markup())
+    await message.reply("Выберете документ для удаления:", reply_markup=keyboard.as_markup())
 
 
 @dp.callback_query(F.data.startswith('@@_'))
 async def what_to_remove_handler(call: CallbackQuery):
-    uid = call.data.replace('@@_', '')
-    data_id = temp_storage.get(uid)
-    if data_id:
-        print(call.from_user.id)
-        query = {"query": {"bool": {"must": [{"match": {"metadata.doc_id": data_id}},
-                                             {"match": {"metadata.doc_owner": str(call.from_user.id)}}]}}}
-        elastic.es.delete_by_query(index=settings.elk_index, body=query)
-        del temp_storage[uid]
-        print(data_id, ' - removed')
+    try:
+        uid = call.data.replace('@@_', '')
+        data_id = temp_storage.get(uid)
+        if data_id:
+            print(call.from_user.id)
+            query = {"query": {"bool": {"must": [{"match": {"metadata.doc_id": data_id}},
+                                                 {"match": {"metadata.doc_owner": str(call.from_user.id)}}]}}}
+            elastic.es.delete_by_query(index=settings.elk_index, body=query)
+            del temp_storage[uid]
+            await bot.send_message(call.from_user.id, f'Документ успешно удален из базы знаний')
+    except Exception as ex:
+        await bot.send_message(call.from_user.id, f'Документ удалить не удалось, ошибка: {ex}')
 
 
 @dp.message()
