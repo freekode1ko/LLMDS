@@ -1,4 +1,3 @@
-import validators
 import asyncio
 import logging
 import uuid
@@ -14,6 +13,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from src.configs import settings
 from src.modules.elastic import Elastic, EsHandler
+from src.modules.gpt_handler import ask_gpt_about_fragment, summarize_answers
 import src.modules.elastic as elk
 import src.modules.transformer as transformer
 
@@ -104,19 +104,17 @@ async def echo_handler(message: Message) -> None:
         else:
             bm25_handler = elk.BM25Handler(es_obj.es, settings.elk_index)
             documents = bm25_handler.vectorstore.similarity_search_with_relevance_scores(query=message.text.lower())
-            sources = {}
-            metadata = []
-            for i, doc in enumerate(documents):
-                #sources[f'{doc[0].metadata["report_id"]}-{i} ({doc[0].metadata["publication_date"]})'] = \
-                #    f'Заголовок обзора: {doc[0].metadata["header"]} Обзор: {doc[0].page_content}'
-                #metadata.append({'header': doc[0].metadata["header"], 'research_id': doc[0].metadata["research_id"]})
-                print(i, doc) # TODO make summ this and send to user with answer
-        # if validators.url(message.text):
-        #    logging.info(f'{user}. TRUE: {message.text}')
-        # else:
-        #    logging.info(f'{user}. FALSE: {message.text}')
-    except TypeError:
-        await message.answer("Nice try!")
+            if not documents:
+                await message.answer("Не удалось найти информации в базе знаний")
+                return
+            answers = []
+            for doc, score in documents:
+                print(doc, score)
+                answer = ask_gpt_about_fragment(doc, message.text)
+                answers.append(answer)
+            await message.reply(summarize_answers(answers, message.text))
+    except Exception as e:
+        await message.answer(str(e))
 
 
 async def main() -> None:
