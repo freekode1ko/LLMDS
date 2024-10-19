@@ -2,7 +2,7 @@ import os
 import logging
 from logging.handlers import RotatingFileHandler
 
-from ..configs.settings import log_lvl
+from src.configs.settings import log_lvl
 
 LOG_FORMAT = '%(asctime)s,%(msecs)d %(levelname)-8s [%(module)s:%(lineno)d in %(funcName)s] %(message)s'
 MAX_BYTES = 10 * 1024 * 1024

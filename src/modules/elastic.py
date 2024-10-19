@@ -11,8 +11,9 @@ class Elastic:
         logging.info('Подключение к Elasticsearch')
         self.es = Elasticsearch(
             settings.elk_url,
-            ca_certs=settings.ca_certs,
-            basic_auth=("elastic", settings.elastic_password))
+            # ca_certs=settings.ca_certs,
+            # basic_auth=("elastic", settings.elastic_password)
+        )
 
     def create_index(self, index_name: str):
         logging.info(f'Создание индекса {index_name}')
