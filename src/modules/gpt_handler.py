@@ -1,6 +1,8 @@
-import logging
 import base64
+import logging
+
 from openai import OpenAI
+
 from src.configs.settings import gpt_token, gpt_model
 
 client = OpenAI(
@@ -11,6 +13,10 @@ client = OpenAI(
 def ask_gpt_about_fragment(fragment: str, query: str) -> str:
     """
     Отправляет фрагмент с запросом в GPT, и возвращает ответ.
+
+    :param fragment: Фрагмент текста, на основе которого необходимо ответить на вопрос.
+    :param query: Вопрос, который необходимо задать GPT.
+    :return: Ответ GPT на заданный вопрос, основанный на предоставленном фрагменте текста.
     """
     prompt = f"На основе следующего фрагмента: '{fragment}', ответь на вопрос: '{query}'"
     try:
@@ -33,6 +39,10 @@ def ask_gpt_about_fragment(fragment: str, query: str) -> str:
 def summarize_answers(answers: list, query: str) -> str:
     """
     Суммирует ответы GPT на основе всех фрагментов.
+
+    :param answers: Список ответов от GPT по отдельным фрагментам текста.
+    :param query: Вопрос, на который нужно дать суммарный ответ.
+    :return: Суммарный ответ на основе всех предоставленных фрагментов.
     """
     prompt = (
             f"На основе следующих ответов, дай развернутый и детализированный суммарный ответ на запрос: '{query}'. "
@@ -60,6 +70,12 @@ def summarize_answers(answers: list, query: str) -> str:
 
 
 def encode_image(image_path):
+    """
+    Кодирует изображение в формат base64.
+
+    :param image_path: Путь к изображению, которое необходимо закодировать.
+    :return: Изображение, закодированное в формате base64.
+    """
     with open(image_path, "rb") as image_file:
         return base64.b64encode(image_file.read()).decode('utf-8')
 
@@ -67,6 +83,11 @@ def encode_image(image_path):
 def ask_gpt_about_image(image_path: str, query: str) -> str:
     """
     Отправляет изображение в GPT и задает вопрос, возвращая ответ.
+
+    :param image_path: Путь к изображению, которое необходимо отправить.
+    :param query: Вопрос, который нужно задать GPT в контексте данного изображения.
+
+    :return: Ответ GPT на вопрос, основанный на анализе изображения.
     """
     try:
         print('преобразование')
