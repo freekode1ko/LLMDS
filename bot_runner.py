@@ -11,6 +11,7 @@ from langchain_community.document_loaders import PyPDFLoader
 from src.configs import settings
 from src.modules.elastic import Elastic, BM25Handler, EsHandler
 from src.modules.gpt_handler import ask_gpt_about_fragment, summarize_answers, ask_gpt_about_image
+from src.modules.whisper_handler import WhisperHandler
 from src.modules.transformer import TextRefactor
 from src.log.logger_base import selector_logger
 
@@ -29,6 +30,37 @@ temp_storage = {}
 elastic = Elastic()
 transformers_obj = TextRefactor()
 es_handler = EsHandler(elastic.es, settings.elk_index)
+whisper_handler = WhisperHandler()
+
+
+@dp.message(F.audio)
+async def handle_audio_message(message: types.Message):
+    """
+    Обработка аудиофайлов, отправленных пользователем.
+
+    Args:
+        message (types.Message): Объект сообщения с аудиофайлом от пользователя.
+    """
+    user = message.from_user
+    try:
+        logger.info(f"Пользователь {user.id} отправил аудиофайл для распознавания")
+
+        # Получаем информацию о файле и загружаем его
+        file_id = message.audio.file_id
+        file = await bot.get_file(file_id)
+        file_name = f'{user.id}_{file_id}.mp3'
+        local_file_path = f'data/input/{file_name}'
+        await bot.download_file(file_path=file.file_path, destination=local_file_path)
+
+        # Транскрипция аудиофайла с использованием Whisper
+        transcription = whisper_handler.transcribe_audio(local_file_path)
+
+        # Отправляем распознанный текст пользователю
+        await message.answer(f"Распознанный текст: {transcription}")
+        logger.info(f"Транскрипция аудиофайла {file_name} завершена")
+    except Exception as ex:
+        logger.error(f"Ошибка при обработке аудиофайла от пользователя {user.id}: {ex}")
+        await message.answer("Произошла ошибка во время обработки вашего аудиофайла, попробуйте снова чуть позже.")
 
 
 @dp.message(CommandStart())
@@ -84,7 +116,7 @@ async def doc_handler(message: types.Message):
         all_users_docs = elastic.es.scroll(scroll_id=scroll_id, scroll='3m')
         scroll_id = all_users_docs['_scroll_id']
         hits.extend(all_users_docs['hits']['hits'])
-
+    temp_storage.clear()  # Очистим временное хранилище во избежание переполнения
     all_unic_docs = set([(hit['_source']['metadata']['file_name'],
                           hit['_source']['metadata']['doc_id']) for hit in hits])
     logger.info(f"{len(hits)} - записей у пользователя: {message.from_user.id}, на {all_unic_docs} документов")
