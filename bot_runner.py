@@ -9,7 +9,7 @@ from aiogram import Bot, Dispatcher, F
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart, Command
-from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import Message, CallbackQuery, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from src.configs import settings
@@ -101,7 +101,16 @@ async def echo_handler(message: Message) -> None:
                 await es_handler.vectorstore.aadd_documents(splitted_page)
             print('docs writed to db')
             await message.reply('Файл загружен и готов к использованию')
-
+        else:
+            bm25_handler = elk.BM25Handler(es_obj.es, settings.elk_index)
+            documents = bm25_handler.vectorstore.similarity_search_with_relevance_scores(query=message.text.lower())
+            sources = {}
+            metadata = []
+            for i, doc in enumerate(documents):
+                #sources[f'{doc[0].metadata["report_id"]}-{i} ({doc[0].metadata["publication_date"]})'] = \
+                #    f'Заголовок обзора: {doc[0].metadata["header"]} Обзор: {doc[0].page_content}'
+                #metadata.append({'header': doc[0].metadata["header"], 'research_id': doc[0].metadata["research_id"]})
+                print(i, doc) # TODO make summ this and send to user with answer
         # if validators.url(message.text):
         #    logging.info(f'{user}. TRUE: {message.text}')
         # else:
