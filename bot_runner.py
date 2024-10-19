@@ -1,19 +1,18 @@
 import asyncio
-import logging
 import uuid
-import sys
+import os
 
 from langchain_community.document_loaders import PyPDFLoader
 from aiogram import Bot, Dispatcher, F
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart, Command
-from aiogram.types import Message, CallbackQuery, InlineKeyboardButton
+from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, ContentType
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from src.configs import settings
 from src.modules.elastic import Elastic, EsHandler
-from src.modules.gpt_handler import ask_gpt_about_fragment, summarize_answers
+from src.modules.gpt_handler import ask_gpt_about_fragment, summarize_answers, ask_gpt_about_image
 from src.log.logger_base import Logger, selector_logger
 import src.modules.elastic as elk
 import src.modules.transformer as transformer
@@ -92,46 +91,69 @@ async def what_to_remove_handler(call: CallbackQuery):
         logger.info(f"Пользователю {call.from_user.id} не удалось удалить документ: {data_id} по причине: {ex}")
 
 
-@dp.message()
-async def echo_handler(message: Message) -> None:
-    try:
-        user = message.from_user
-        if message.content_type == 'document':
-            logger.info(f"Пользователь {user.id} загружает документ в базу знаний")
-            await message.reply('Принял в обработку, подождите минуту')
-            file_id = message.document.file_id
-            file = await bot.get_file(file_id)
-            file_type = file.file_path.split(".")[-1]
-            file_name = f'{user.id}@{file_id}.{file_type}'
-            local_file_path = f'data/input/{file_name}'
-            await bot.download_file(file_path=file.file_path, destination=local_file_path)
-            logger.info(f"файл {file_name} сохранен локально")
-            pdf_loader = PyPDFLoader(local_file_path, extract_images=True)
-            pdf_pages = pdf_loader.load_and_split()
-            logger.info(f"Начало обработки {file_name}, содержит {len(pdf_pages)}")
-            for page in pdf_pages:
-                page_metadata = {'doc_owner': user.id, 'doc_id': file_id,
-                                 'file_name': message.document.file_name, 'page_number': page.metadata['page']}
-                splitted_page = transformers_obj.text_splitter(page.page_content, page_metadata)
-                await es_handler.vectorstore.aadd_documents(splitted_page)
-            await message.reply('Файл загружен и готов к использованию')
-            logger.info(f"файл {file_name} обработан и сохранен в ELK")
-        else:
-            logger.info(f"Пользователь {user.id} спросил базу знаний: {message.text}")
-            bm25_handler = elk.BM25Handler(es_obj.es, settings.elk_index)
-            documents = bm25_handler.vectorstore.similarity_search_with_relevance_scores(query=message.text.lower())
-            if not documents:
-                await message.answer("Не удалось найти информации в базе знаний")
-                logger.warning(f"Пользователь {user.id} не нашел ответа в базе знаний по вопросу: {message.text}")
-                return
-            answers = []
-            for doc, score in documents:
-                logger.debug(f"DOC: {doc}, {score}")
-                answer = ask_gpt_about_fragment(doc, message.text)
-                answers.append(answer)
-            await message.reply(summarize_answers(answers, message.text))
-    except Exception as ex:
+@dp.message(F.photo)
+async def handle_image_message(message: Message):
+    """
+    Обработка изображений, отправленных пользователем.
+    """
+    query = message.caption or "Опишите изображение"
+    photo = message.photo[-1]
+    file_info = await bot.get_file(photo.file_id)
+    print('Фото получено')
+    image_path = os.path.join('data/input/', f"{photo.file_id}.png")
+    await bot.download_file(file_info.file_path, image_path)
+    print('Фото скачано')
+    response = ask_gpt_about_image(image_path, query)
+    print('Получен ответ')
+    await message.answer(response)
 
+
+@dp.message(F.document)
+async def handle_image_message(message: Message):
+    user = message.from_user
+    try:
+        logger.info(f"Пользователь {user.id} загружает документ в базу знаний")
+        await message.reply('Принял в обработку, подождите минуту')
+        file_id = message.document.file_id
+        file = await bot.get_file(file_id)
+        file_type = file.file_path.split(".")[-1]
+        file_name = f'{user.id}@{file_id}.{file_type}'
+        local_file_path = f'data/input/{file_name}'
+        await bot.download_file(file_path=file.file_path, destination=local_file_path)
+        logger.info(f"файл {file_name} сохранен локально")
+        pdf_loader = PyPDFLoader(local_file_path, extract_images=True)
+        pdf_pages = pdf_loader.load_and_split()
+        logger.info(f"Начало обработки {file_name}, содержит {len(pdf_pages)}")
+        for page in pdf_pages:
+            page_metadata = {'doc_owner': user.id, 'doc_id': file_id,
+                             'file_name': message.document.file_name, 'page_number': page.metadata['page']}
+            splitted_page = transformers_obj.text_splitter(page.page_content, page_metadata)
+            await es_handler.vectorstore.aadd_documents(splitted_page)
+        await message.reply('Файл загружен и готов к использованию')
+        logger.info(f"файл {file_name} обработан и сохранен в ELK")
+    except Exception as ex:
+        logger.warning(f"Пользователь {user.id} получил ошибку при загрузке документа: {ex.__class__.__name__}")
+        await message.answer("Произошла ошибка во время обработки вашего запроса, попробуйте снова чуть позже.")
+
+
+@dp.message(F.text)
+async def echo_handler(message: Message) -> None:
+    user = message.from_user
+    try:
+        logger.info(f"Пользователь {user.id} спросил базу знаний: {message.text}")
+        bm25_handler = elk.BM25Handler(es_obj.es, settings.elk_index)
+        documents = bm25_handler.vectorstore.similarity_search_with_relevance_scores(query=message.text.lower())
+        if not documents:
+            await message.answer("Не удалось найти информации в базе знаний")
+            logger.warning(f"Пользователь {user.id} не нашел ответа в базе знаний по вопросу: {message.text}")
+            return
+        answers = []
+        for doc, score in documents:
+            logger.debug(f"DOC: {doc}, {score}")
+            answer = ask_gpt_about_fragment(doc, message.text)
+            answers.append(answer)
+        await message.reply(summarize_answers(answers, message.text))
+    except Exception as ex:
         logger.warning(f"Пользователь {user.id} получил ошибку при работе с ботом: {ex.__class__.__name__}")
         await message.answer("Произошла ошибка во время обработки вашего запроса, попробуйте снова чуть позже.")
 
