@@ -73,7 +73,7 @@ def ask_gpt_about_image(image_path: str, query: str) -> str:
         base64_image = encode_image(image_path)
         print('преобразование готово')
         response = client.chat.completions.create(
-            model="gpt-4-vision",
+            model="gpt-4o",
             messages=[
                 {"role": "system",
                  "content": "Ты - помощник, который суммирует ответы по запросу пользователя и предоставляет "
