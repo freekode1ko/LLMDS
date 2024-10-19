@@ -90,9 +90,7 @@ def ask_gpt_about_image(image_path: str, query: str) -> str:
     :return: Ответ GPT на вопрос, основанный на анализе изображения.
     """
     try:
-        print('преобразование')
         base64_image = encode_image(image_path)
-        print('преобразование готово')
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
@@ -107,9 +105,7 @@ def ask_gpt_about_image(image_path: str, query: str) -> str:
             temperature=0.0,
             max_tokens=1000
         )
-        print('ответ получен')
         return response.choices[0].message.content.strip()
     except Exception as e:
-        print('ERROR!')
         logging.error(f"Ошибка при обработке изображения с GPT: {e}")
         return "Не удалось получить ответ на основе изображения."
