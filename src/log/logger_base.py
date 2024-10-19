@@ -1,6 +1,5 @@
-"""Модуль содержащий в себе методы логирования."""
-import logging
 import os
+import logging
 from logging.handlers import RotatingFileHandler
 
 from ..configs.settings import log_lvl
@@ -18,8 +17,8 @@ class Logger:
         """
         Метод инициализации класса для логирования.
 
-        :param log_name: В какой файл писать. Если запуск установлен из main.py -> log_name=='Main'
-        :param level: Установить уровень логирования
+        :param log_name: В какой файл писать. Если запуск установлен из main.py -> log_name=='Main'.
+        :param level: Установить уровень логирования.
         """
         self.log_dir = 'logs/{}/{}.log'.format(log_name, log_name)
         self.log_format = LOG_FORMAT
@@ -31,11 +30,11 @@ class Logger:
 
 def selector_logger(module_logger: str, level: int = log_lvl):
     """
-    Селектор для логера
+    Селектор для логгера
 
-    :param module_logger: Имя файла с точкой входа для логирования
-    :param level: уровень логирования
-    return Класс логера
+    :param module_logger: Имя файла с точкой входа для логирования.
+    :param level: уровень логирования.
+    :return: Класс логгера.
     """
     logs_path = os.path.join('logs', module_logger)
     if not os.path.exists(logs_path):

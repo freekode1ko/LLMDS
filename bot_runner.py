@@ -58,7 +58,7 @@ def shrink_doc_id(doc_file_id: str):
     Уменьшает длину идентификатора документа для использования в callback_data.
 
     :param doc_file_id: Идентификатор документа.
-    :return str: Сокращенный уникальный идентификатор.
+    :return: Сокращенный уникальный идентификатор.
     """
     data_id = str(uuid.uuid4())
     temp_storage[data_id] = doc_file_id

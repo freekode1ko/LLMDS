@@ -1,5 +1,3 @@
-"""Переопределение модели эмбеддингов."""
-
 from typing import Any, Coroutine, List
 
 from langchain_community.embeddings import HuggingFaceEmbeddings
@@ -22,8 +20,8 @@ class HuggingFaceE5Embeddings(HuggingFaceEmbeddings):
         """
         Преобразование списка текстов в эмбеддинги.
 
-        :param texts: список из текстов
-        :return: список векторов
+        :param texts: список из текстов.
+        :return: список векторов.
         """
         texts = [f'passage: {text}' for text in texts]
         embed_texts = []
@@ -36,8 +34,8 @@ class HuggingFaceE5Embeddings(HuggingFaceEmbeddings):
         """
         Преобразование текста в эмбеддинги.
 
-        :param text: текст
-        :return: вектор
+        :param text: текст.
+        :return: вектор.
         """
         text = f'query: {text}'
         return await super().aembed_query(text)
@@ -48,8 +46,8 @@ class HuggingFaceE5Embeddings(HuggingFaceEmbeddings):
         """
         Преобразование списка текстов в эмбеддинги.
 
-        :param texts: список из текстов
-        :return: список векторов
+        :param texts: список из текстов.
+        :return: список векторов.
         """
         texts = [f'passage: {text}' for text in texts]
         return await super().aembed_documents(texts)
