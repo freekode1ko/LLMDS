@@ -96,7 +96,7 @@ async def handle_image_message(message: Message):
     """
     Обработка изображений, отправленных пользователем.
     """
-    query = message.caption or "Опишите изображение"
+    query = message.caption or "Внимательно изучи и скажи что тут изображено, подмечай все"
     photo = message.photo[-1]
     file_info = await bot.get_file(photo.file_id)
     print('Фото получено')
@@ -105,7 +105,7 @@ async def handle_image_message(message: Message):
     print('Фото скачано')
     response = ask_gpt_about_image(image_path, query)
     print('Получен ответ')
-    await message.answer(response)
+    await message.answer(response, parse_mode=ParseMode.MARKDOWN)
 
 
 @dp.message(F.document)
