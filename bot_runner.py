@@ -1,4 +1,3 @@
-import os
 import uuid
 import asyncio
 
@@ -11,24 +10,42 @@ from langchain_community.document_loaders import PyPDFLoader
 from src.configs import settings
 from src.modules.elastic import Elastic, BM25Handler, EsHandler
 from src.modules.gpt_handler import ask_gpt_about_fragment, summarize_answers, ask_gpt_about_image
+from src.modules.whisper_handler import WhisperHandler
 from src.modules.transformer import TextRefactor
 from src.log.logger_base import selector_logger
 
-# Инициализация бота и Elasticsearch
 bot = Bot(token=settings.bot_token)
 dp = Dispatcher()
 
-# Путь для временного сохранения изображений
-TEMP_IMAGE_PATH = 'data/input'
-os.makedirs(TEMP_IMAGE_PATH, exist_ok=True)
-
-# Логгер для отслеживания событий
 logger = selector_logger('bot_runner', settings.LOG_LEVEL_INFO)
 
 temp_storage = {}
 elastic = Elastic()
 transformers_obj = TextRefactor()
+whisper_handler = WhisperHandler()
 es_handler = EsHandler(elastic.es, settings.elk_index)
+
+
+def shrink_doc_id(doc_file_id: str):
+    """
+    Уменьшает длину идентификатора документа для использования в callback_data.
+
+    :param doc_file_id: Идентификатор документа.
+    :return: Сокращенный уникальный идентификатор.
+    """
+    data_id = str(uuid.uuid4())
+    temp_storage[data_id] = doc_file_id
+    logger.info(f"Файл: {doc_file_id}, записан как: {data_id}")
+    return data_id
+
+
+async def download_file(file_id, user_id):
+    file = await bot.get_file(file_id)
+    file_type = file.file_path.split(".")[-1]
+    file_name = f'{user_id}@{file_id}.{file_type}'
+    local_file_path = f'data/input/{file_name}'
+    await bot.download_file(file_path=file.file_path, destination=local_file_path)
+    return file_name, local_file_path
 
 
 @dp.message(CommandStart())
@@ -53,17 +70,24 @@ async def command_start_handler(message: types.Message):
     await message.answer("Elastic готов к работе")
 
 
-def shrink_doc_id(doc_file_id: str):
+@dp.message(F.audio)
+async def handle_audio_message(message: types.Message):
     """
-    Уменьшает длину идентификатора документа для использования в callback_data.
+    Обработка аудиофайлов, отправленных пользователем.
 
-    :param doc_file_id: Идентификатор документа.
-    :return: Сокращенный уникальный идентификатор.
+    :param message: Объект сообщения с аудиофайлом от пользователя.
     """
-    data_id = str(uuid.uuid4())
-    temp_storage[data_id] = doc_file_id
-    logger.info(f"Файл: {doc_file_id}, записан как: {data_id}")
-    return data_id
+    user = message.from_user
+    try:
+        logger.info(f"Пользователь {user.id} отправил аудиофайл для распознавания")
+        file_id = message.audio.file_id
+        file_name, local_file_path = await download_file(file_id, user.id)
+        transcription = whisper_handler.transcribe_audio(local_file_path)
+        await message.answer(f"Распознанный текст: {transcription}")
+        logger.info(f"Транскрипция аудиофайла {file_name} завершена")
+    except Exception as ex:
+        logger.error(f"Ошибка при обработке аудиофайла от пользователя {user.id}: {ex}")
+        await message.answer("Произошла ошибка во время обработки вашего аудиофайла, попробуйте снова чуть позже.")
 
 
 @dp.message(Command('delete_doc'))
@@ -84,7 +108,7 @@ async def doc_handler(message: types.Message):
         all_users_docs = elastic.es.scroll(scroll_id=scroll_id, scroll='3m')
         scroll_id = all_users_docs['_scroll_id']
         hits.extend(all_users_docs['hits']['hits'])
-
+    temp_storage.clear()  # Очистим временное хранилище во избежание переполнения
     all_unic_docs = set([(hit['_source']['metadata']['file_name'],
                           hit['_source']['metadata']['doc_id']) for hit in hits])
     logger.info(f"{len(hits)} - записей у пользователя: {message.from_user.id}, на {all_unic_docs} документов")
@@ -124,20 +148,14 @@ async def handle_image_message(message: types.Message):
 
     :param message: Объект сообщения с изображением от пользователя.
     """
+    user = message.from_user
     query = message.caption or "Внимательно изучи и скажи что тут изображено, подмечай все"
-    photo = message.photo[-1]
-    file_info = await bot.get_file(photo.file_id)
-
-    # Сохраняем изображение временно
-    image_path = os.path.join(TEMP_IMAGE_PATH, f"{photo.file_id}.png")
-    await bot.download_file(file_info.file_path, image_path)
-
-    # Отправляем изображение и вопрос в GPT
-    response = ask_gpt_about_image(image_path, query)
-    os.remove(image_path)
-
-    # Отправляем ответ пользователю
+    logger.info(f"Пользователь {user.id} отправил изображение для распознавания вместе с запросом: {query}")
+    file_id = message.photo[-1].file_id
+    file_name, local_file_path = await download_file(file_id, user.id)
+    response = ask_gpt_about_image(local_file_path, query)
     await message.answer(response, parse_mode='Markdown')
+    logger.info(f"Файл {file_name} распознан и ответ сформирован")
 
 
 @dp.message(F.document)
@@ -153,17 +171,10 @@ async def handle_document_message(message: types.Message):
         logger.info(f"Пользователь {user.id} загружает документ в базу знаний")
         await message.reply('Принял в обработку, подождите минуту')
         file_id = message.document.file_id
-        file = await bot.get_file(file_id)
-        file_type = file.file_path.split(".")[-1]
-        file_name = f'{user.id}@{file_id}.{file_type}'
-        local_file_path = f'data/input/{file_name}'
-        await bot.download_file(file_path=file.file_path, destination=local_file_path)
-
-        # Используем PyPDFLoader для обработки PDF-документа
+        file_name, local_file_path = await download_file(file_id, user.id)
         pdf_loader = PyPDFLoader(local_file_path)
         pdf_pages = pdf_loader.load_and_split()
 
-        # Обработка страниц PDF-документа
         for page in pdf_pages:
             page_metadata = {'doc_owner': user.id, 'doc_id': file_id, 'file_name': message.document.file_name,
                              'page_number': page.metadata['page']}
